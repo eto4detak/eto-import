@@ -19,6 +19,12 @@ if (!defined('ABSPATH')) {
 
 class Eto_Demo_Data{
 
+    const POST_COUNT = 20;
+    const CONTENT_COUNT = 100;
+    const CATEGORY_TERM = ['apple', 'top', 'boss'];
+    const POST_TAG_TERM = ['auto', 'food', 'news'];
+    
+
     public function __construct()
     {
         // admin
@@ -31,7 +37,7 @@ class Eto_Demo_Data{
     //страница настроек 
 
     function submenu_page_url() {
-        add_submenu_page( 'options-general.php', 'Eto Demo Data', 'Eto Demo Data', 'manage_options', 'compare-cars', array($this, 'submenu_page_print') );
+        add_submenu_page( 'options-general.php', 'Eto Demo Data', 'Eto Demo Data', 'manage_options', 'eto_demo_data1', array($this, 'submenu_page_print') );
     }
 
     function submenu_page_print(){
@@ -39,7 +45,7 @@ class Eto_Demo_Data{
         ?>
         <div class="wrap">
             <h3><?php echo get_admin_page_title() ?></h3>
-
+    
             <form action="options.php" method="POST">
                 <?php
                     settings_fields( 'eto_demo_opt_gr' ); 
@@ -55,8 +61,8 @@ class Eto_Demo_Data{
 
         register_setting( 'eto_demo_opt_gr', 'eto_demo_templ', array($this, 'sanitize_clb') );
         add_settings_section( 'eto_demo_section1',  __('Основные настройки', 'eto'), '', 'eto_demo_page1' ); 
-        add_settings_field('primer_field1', __('Field of first', 'eto'), array($this, 'field_first_display'), 'eto_demo_page1', 'eto_demo_section1' );
-        add_settings_field('compare_field_favorite',  __('Field of hide', 'eto'), array($this, 'field_hide_display'), 'eto_demo_page1', 'eto_demo_section1' );
+        add_settings_field('eto_demo_first_field', __('Field of first', 'eto'), array($this, 'field_first_display'), 'eto_demo_page1', 'eto_demo_section1' );
+        add_settings_field('eto_demo_demo_start_field', __('Field of Demo start', 'eto'), array($this, 'field_demo_start_display'), 'eto_demo_page1', 'eto_demo_section1' );
     }
 
     function field_first_display(){
@@ -81,12 +87,17 @@ class Eto_Demo_Data{
 
         <?php
     }
-    function field_hide_display(){
 
-        $val = get_option('eto_demo_templ'); 
-        $no_favorite = !empty($val['no_favorite']) ? $val['no_favorite'] : false;
+    function field_demo_start_display(){
+
+        $val = get_option('eto_demo_templ');
+        update_option('eto_demo_templ', false, 'no');
+        $demo_start = !empty($val['demo_start']) ? $val['demo_start'] : false;
+        if($demo_start){
+            self::import_demo_data();
+        }
         ?>
-        <label><input type="checkbox" name="eto_demo_templ[no_favorite]" value="1" <?php checked( 1, $no_favorite ) ?> /></label>
+        <label><input type="checkbox" name="eto_demo_templ[demo_start]" value="1" <?php checked( 1, false ) ?> /></label>
         <?php
     }
 
@@ -97,6 +108,120 @@ class Eto_Demo_Data{
     //****************end admin*********************
 
 
+
+    function import_demo_data(){
+        $count_posts = wp_count_posts();
+        $media_ids = [];
+        //$published_posts = wp_count_posts('new_post_type')->publish;
+
+        $categoris = self::set_category_taxonomy();
+        $tag = self::set_post_tag_taxonomy();
+
+        for ($i=0; $i < self::POST_COUNT; $i++) { 
+            $title = 'Post ' . ($count_posts->publish + 1 + $i);
+            $content = '';
+            for ($c=0; $c < self::CONTENT_COUNT; $c++) { 
+                $content .= 'Content ' . $title . ' ';
+            }
+
+            $post_data = array(
+                'post_title'    => sanitize_text_field( $title ),
+                'post_content'  => $content,
+                'post_status'   => 'publish',
+                'post_author'   => 1,
+            );
+
+            // Вставляем запись в базу данных
+            $post_id = wp_insert_post( $post_data );
+           
+            $index = $i % count(self::POST_TAG_TERM);
+            $cat_index = $i % count(self::CATEGORY_TERM);
+            $term_id = term_exists(self::CATEGORY_TERM[$cat_index]);
+            wp_set_post_terms( $post_id, self::POST_TAG_TERM[$index], 'post_tag', true );
+            wp_set_post_categories( $post_id, $term_id );
+
+            $file = plugin_dir_url(__FILE__) . 'images/'. ($i % 10) .'.jpg';
+            if(count($media_ids) < 10){
+                $media_id = self::set_image($post_id, $file);
+                $media_ids[] = $media_id;
+            }else{
+                set_post_thumbnail( $post_id, $media_ids[$i % 10] );
+            }
+            
+            
+        }
+
+    }
+
+    function set_category_taxonomy(){
+
+        $terms = [];
+        foreach (self::CATEGORY_TERM as $key => $term) {
+           $term = wp_insert_term( $term, 'category' );
+           $terms[] = $term;
+        }
+        
+        return $terms;
+    }
+    function set_post_tag_taxonomy(){
+
+        $terms = [];
+        foreach (self::POST_TAG_TERM as $key => $term) {
+           $term = wp_insert_term( $term, 'post_tag' );
+           $terms[] = $term;
+        }
+        
+        return $terms;
+    }
+
+    function set_image($post_id, $file){
+
+        $desc = 'Описание картинки';
+
+        global $debug; // определяется за пределами функции как true
+
+        if( ! function_exists('media_handle_sideload') ) {
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+        }
+
+        // Загружаем файл во временную директорию
+        $tmp = download_url( $file );
+
+        // Устанавливаем переменные для размещения
+        $file_array = [
+            'name'     => basename( $file ),
+            'tmp_name' => $tmp
+        ];
+
+        // Удаляем временный файл, при ошибке
+        if ( is_wp_error( $tmp ) ) {
+            $file_array['tmp_name'] = '';
+            if( $debug ) echo 'Ошибка нет временного файла! <br />';
+        }
+
+        // проверки при дебаге
+        if( $debug ){
+            echo 'File array: <br />';
+            var_dump( $file_array );
+            echo '<br /> Post id: ' . $post_id . '<br />';
+        }
+
+        $id = media_handle_sideload( $file_array, $post_id, $desc );
+
+        // Проверяем работу функции
+        if ( is_wp_error( $id ) ) {
+            var_dump( $id->get_error_messages() );
+        } else {
+            update_post_meta( $post_id, '_thumbnail_id', $id );
+        }
+
+        // удалим временный файл
+        @unlink( $tmp );
+
+        return $id;
+    }
 }
 
 
