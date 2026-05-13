@@ -20,9 +20,11 @@ if (!defined('ABSPATH')) {
 class Eto_Demo_Data{
 
     const POST_COUNT = 20;
+    const IMG_COUNT = 10;
     const CONTENT_COUNT = 100;
     const CATEGORY_TERM = ['apple', 'top', 'boss'];
     const POST_TAG_TERM = ['auto', 'food', 'news'];
+    
     
 
     public function __construct()
