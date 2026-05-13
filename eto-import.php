@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Демо данные вордпрес
  * Description: Eto demo
- * Author:       eto | anatolif
+ * Author:       eto | Anatoli Fokin
  *
  * License:     GPL2
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -111,6 +111,7 @@ class Eto_Demo_Data{
 
     function import_demo_data(){
         $count_posts = wp_count_posts();
+        $page_count = wp_count_posts('page');
         $media_ids = [];
         //$published_posts = wp_count_posts('new_post_type')->publish;
 
@@ -118,22 +119,32 @@ class Eto_Demo_Data{
         $tag = self::set_post_tag_taxonomy();
 
         for ($i=0; $i < self::POST_COUNT; $i++) { 
-            $title = 'Post ' . ($count_posts->publish + 1 + $i);
+            $post_title = 'Post ' . ($count_posts->publish + 1 + $i);
+            $page_title = 'Page ' . ($page_count->publish + 1 + $i);
             $content = '';
+            $page_content = '';
             for ($c=0; $c < self::CONTENT_COUNT; $c++) { 
-                $content .= 'Content ' . $title . ' ';
+                $content .= 'Content ' . $post_title . ' ';
+                $page_content .= 'Content ' . $page_title . ' ';
             }
 
             $post_data = array(
-                'post_title'    => sanitize_text_field( $title ),
+                'post_title'    => sanitize_text_field( $post_title ),
                 'post_content'  => $content,
                 'post_status'   => 'publish',
                 'post_author'   => 1,
             );
-
-            // Вставляем запись в базу данных
             $post_id = wp_insert_post( $post_data );
-           
+            
+            $page_data = array(
+                'post_title'    => sanitize_text_field( $page_title ),
+                'post_content'  => $page_content,
+                'post_status'   => 'publish',
+                'post_type'     => 'page',
+                'post_author'   => 1,
+            );
+            $page_id = wp_insert_post( $page_data );
+
             $index = $i % count(self::POST_TAG_TERM);
             $cat_index = $i % count(self::CATEGORY_TERM);
             $term_id = term_exists(self::CATEGORY_TERM[$cat_index]);
@@ -144,13 +155,33 @@ class Eto_Demo_Data{
             if(count($media_ids) < 10){
                 $media_id = self::set_image($post_id, $file);
                 $media_ids[] = $media_id;
+                set_post_thumbnail( $page_id, $media_ids[$i % 10] );
             }else{
                 set_post_thumbnail( $post_id, $media_ids[$i % 10] );
+                set_post_thumbnail( $page_id, $media_ids[$i % 10] );
             }
             
             
         }
+        self::set_menu();
 
+    }
+
+    function set_menu(){
+
+        $name = 'primary-menu';
+        $menu_exists = wp_get_nav_menu_object($name);
+        if( !$menu_exists){
+            $menu_id = wp_create_nav_menu($name);
+            
+        }
+        $menu = get_term_by( 'name', $name, 'nav_menu' );
+        wp_update_nav_menu_item($menu->term_id, 0, array(
+			'menu-item-title' =>  __('Topics'),
+			'menu-item-classes' => 'topics-dropdown',
+			'menu-item-url' => '#',
+			'menu-item-type' => 'custom',
+			'menu-item-status' => 'publish'));
     }
 
     function set_category_taxonomy(){
