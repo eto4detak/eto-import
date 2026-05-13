@@ -50,7 +50,7 @@ class Eto_Demo_Data{
                 <?php
                     settings_fields( 'eto_demo_opt_gr' ); 
                     do_settings_sections( 'eto_demo_page1' );
-                    submit_button();
+                    submit_button(__('Start import', 'eto'));
                 ?>
             </form>
         </div>
@@ -108,11 +108,11 @@ class Eto_Demo_Data{
     //****************end admin*********************
 
 
-
     function import_demo_data(){
         $count_posts = wp_count_posts();
         $page_count = wp_count_posts('page');
         $media_ids = [];
+        $post_IDs = [];
         //$published_posts = wp_count_posts('new_post_type')->publish;
 
         $categoris = self::set_category_taxonomy();
@@ -135,6 +135,7 @@ class Eto_Demo_Data{
                 'post_author'   => 1,
             );
             $post_id = wp_insert_post( $post_data );
+            $post_IDs[] = $post_id;
             
             $page_data = array(
                 'post_title'    => sanitize_text_field( $page_title ),
@@ -144,6 +145,7 @@ class Eto_Demo_Data{
                 'post_author'   => 1,
             );
             $page_id = wp_insert_post( $page_data );
+            $post_IDs[] = $page_id;
 
             $index = $i % count(self::POST_TAG_TERM);
             $cat_index = $i % count(self::CATEGORY_TERM);
@@ -163,25 +165,62 @@ class Eto_Demo_Data{
             
             
         }
-        self::set_menu();
+        self::set_menu($post_IDs[count($post_IDs)-1], $post_IDs[count($post_IDs)-2]);
+        self::set_comments($post_IDs);
+    }
+
+    function set_comments($post_IDs = []){
+        
+        foreach ($post_IDs as $key => $id) {
+            $commentdata = [
+                'comment_post_ID'      => $id,
+                'comment_author'       => 'admin',
+                'comment_author_email' => 'admin@admin.com',
+                'comment_author_url'   => 'http://example.com',
+                'comment_content'      => 'Текст нового комментария для поста ' . $id,
+                'comment_type'         => 'comment',
+                //'comment_parent'       => 315,
+                'user_ID'              => 1,
+            ];
+
+            wp_new_comment( $commentdata );
+        } 
 
     }
 
-    function set_menu(){
+    function set_menu($page_id = 0, $post_id = 0){
 
         $name = 'primary-menu';
         $menu_exists = wp_get_nav_menu_object($name);
         if( !$menu_exists){
             $menu_id = wp_create_nav_menu($name);
-            
+            $menu = get_term_by( 'name', $name, 'nav_menu' );
+
+            wp_update_nav_menu_item($menu->term_id, 0, array(
+                'menu-item-title' =>  __('Home'),
+                'menu-item-classes' => 'topics-dropdown',
+                'menu-item-url' => get_home_url(),
+                'menu-item-type' => 'custom',
+                'menu-item-status' => 'publish'));
+
+            $the_post = get_post( $post_id );
+            wp_update_nav_menu_item($menu->term_id, 0, array(
+                'menu-item-title' =>  $the_post->post_title,
+                'menu-item-classes' => 'topics-dropdown',
+                'menu-item-url' => get_permalink($post_id),
+                'menu-item-type' => 'custom',
+                'menu-item-status' => 'publish'));
+                $the_post = get_post( $post_id );
+
+            $the_post = get_post( $page_id );
+            wp_update_nav_menu_item($menu->term_id, 0, array(
+                'menu-item-title' =>  $the_post->post_title,
+                'menu-item-classes' => 'topics-dropdown',
+                'menu-item-url' => get_permalink($page_id),
+                'menu-item-type' => 'custom',
+                'menu-item-status' => 'publish'));
         }
-        $menu = get_term_by( 'name', $name, 'nav_menu' );
-        wp_update_nav_menu_item($menu->term_id, 0, array(
-			'menu-item-title' =>  __('Topics'),
-			'menu-item-classes' => 'topics-dropdown',
-			'menu-item-url' => '#',
-			'menu-item-type' => 'custom',
-			'menu-item-status' => 'publish'));
+
     }
 
     function set_category_taxonomy(){
