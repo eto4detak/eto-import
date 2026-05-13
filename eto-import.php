@@ -21,6 +21,7 @@ class Eto_Demo_Data{
 
     const POST_COUNT = 20;
     const IMG_COUNT = 10;
+    const POST_TYPE_COUNT = 10;
     const CONTENT_COUNT = 100;
     const CATEGORY_TERM = ['apple', 'top', 'boss'];
     const POST_TAG_TERM = ['auto', 'food', 'news'];
@@ -96,8 +97,11 @@ class Eto_Demo_Data{
         update_option('eto_demo_templ', false, 'no');
         $demo_start = !empty($val['demo_start']) ? $val['demo_start'] : false;
         if($demo_start){
+            
             self::import_demo_data();
         }
+        
+
         ?>
         <label><input type="checkbox" name="eto_demo_templ[demo_start]" value="1" <?php checked( 1, false ) ?> /></label>
         <?php
@@ -115,6 +119,7 @@ class Eto_Demo_Data{
         $page_count = wp_count_posts('page');
         $media_ids = [];
         $post_IDs = [];
+        $page_IDs = [];
         //$published_posts = wp_count_posts('new_post_type')->publish;
 
         $categoris = self::set_category_taxonomy();
@@ -147,7 +152,7 @@ class Eto_Demo_Data{
                 'post_author'   => 1,
             );
             $page_id = wp_insert_post( $page_data );
-            $post_IDs[] = $page_id;
+            $page_IDs[] = $page_id;
 
             $index = $i % count(self::POST_TAG_TERM);
             $cat_index = $i % count(self::CATEGORY_TERM);
@@ -167,8 +172,65 @@ class Eto_Demo_Data{
             
             
         }
-        self::set_menu($post_IDs[count($post_IDs)-1], $post_IDs[count($post_IDs)-2]);
+        self::set_blog_page($page_IDs[count($page_IDs) -1], $page_IDs[count($page_IDs) -2]);
+        self::set_menu($post_IDs[count($post_IDs)-1], $page_IDs[count($page_IDs)-1], $page_IDs[count($page_IDs)-2]);
         self::set_comments($post_IDs);
+        self::set_post_type($media_ids);
+    }
+
+    function set_blog_page($for_post, $for_page){
+        
+        update_option('show_on_front', 'page');
+        update_option('page_for_posts', $for_post);
+        update_option('page_on_front', $for_page);
+
+        $my_post = array(
+            'ID'         => $for_post,
+            'post_title' => __('Blog', 'eto'),
+        );
+        wp_update_post( $my_post );
+
+        $my_post = array(
+            'ID'         => $for_page,
+            'post_title' => __('Home', 'eto'),
+        );
+        wp_update_post( $my_post );
+        
+    }
+
+    function set_post_type($media_ids = []){
+
+        $args = array(
+            'public'   => true,
+            '_builtin' => false
+        );
+        $output   = 'names'; // names or objects, note names is the default
+        $operator = 'and';   // 'and' or 'or'
+        $post_types = get_post_types( $args, $output, $operator );
+        foreach ( $post_types as $post_type ) {
+
+            for ($i=0; $i < self::POST_TYPE_COUNT; $i++) {
+
+                $post_count = wp_count_posts($post_type);
+                $post_title = $post_type . ' ' . ($post_count->publish + 1 + $i);
+                $post_content = '';
+                for ($c=0; $c < self::CONTENT_COUNT; $c++) { 
+                    $post_content .= 'Content ' . $post_title . ' ';
+                }
+
+                $page_data = array(
+                    'post_title'    => sanitize_text_field( $post_title ),
+                    'post_content'  => $post_content,
+                    'post_status'   => 'publish',
+                    'post_type'     => $post_type,
+                    'post_author'   => 1,
+                );
+                $page_id = wp_insert_post( $page_data );
+                set_post_thumbnail( $page_id, $media_ids[$i % self::IMG_COUNT] );
+            }
+
+        }
+
     }
 
     function set_comments($post_IDs = []){
@@ -190,7 +252,7 @@ class Eto_Demo_Data{
 
     }
 
-    function set_menu($page_id = 0, $post_id = 0){
+    function set_menu($page_id = 0, $post_id = 0, $blog_id = 0){
 
         $name = 'primary-menu';
         $menu_exists = wp_get_nav_menu_object($name);
@@ -204,24 +266,32 @@ class Eto_Demo_Data{
                 'menu-item-url' => get_home_url(),
                 'menu-item-type' => 'custom',
                 'menu-item-status' => 'publish'));
-
-            $the_post = get_post( $post_id );
-            wp_update_nav_menu_item($menu->term_id, 0, array(
-                'menu-item-title' =>  $the_post->post_title,
-                'menu-item-classes' => 'topics-dropdown',
-                'menu-item-url' => get_permalink($post_id),
-                'menu-item-type' => 'custom',
-                'menu-item-status' => 'publish'));
-                $the_post = get_post( $post_id );
-
-            $the_post = get_post( $page_id );
-            wp_update_nav_menu_item($menu->term_id, 0, array(
-                'menu-item-title' =>  $the_post->post_title,
-                'menu-item-classes' => 'topics-dropdown',
-                'menu-item-url' => get_permalink($page_id),
-                'menu-item-type' => 'custom',
-                'menu-item-status' => 'publish'));
         }
+        $menu = get_term_by( 'name', $name, 'nav_menu' );
+        $the_post = get_post( $post_id );
+        wp_update_nav_menu_item($menu->term_id, 0, array(
+            'menu-item-title' =>  $the_post->post_title,
+            'menu-item-classes' => 'topics-dropdown',
+            'menu-item-url' => get_permalink($post_id),
+            'menu-item-type' => 'custom',
+            'menu-item-status' => 'publish'));
+            $the_post = get_post( $post_id );
+
+        $the_post = get_post( $page_id );
+        wp_update_nav_menu_item($menu->term_id, 0, array(
+            'menu-item-title' =>  $the_post->post_title,
+            'menu-item-classes' => 'topics-dropdown',
+            'menu-item-url' => get_permalink($page_id),
+            'menu-item-type' => 'custom',
+            'menu-item-status' => 'publish'));
+
+        $the_post = get_post( $blog_id );
+        wp_update_nav_menu_item($menu->term_id, 0, array(
+            'menu-item-title' =>  $the_post->post_title,
+            'menu-item-classes' => 'topics-dropdown',
+            'menu-item-url' => get_permalink($blog_id),
+            'menu-item-type' => 'custom',
+            'menu-item-status' => 'publish'));
 
     }
 
