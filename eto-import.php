@@ -173,9 +173,30 @@ class Eto_Demo_Data{
             
         }
         self::set_blog_page($page_IDs[count($page_IDs) -1], $page_IDs[count($page_IDs) -2]);
+        $template_page_ids = self::set_template($page_IDs);
         self::set_menu($post_IDs[count($post_IDs)-1], $page_IDs[count($page_IDs)-1], $page_IDs[count($page_IDs)-2]);
+        self::add_template_page_in_menu($template_page_ids);
         self::set_comments($post_IDs);
         self::set_post_type($media_ids);
+    }
+
+    function set_template($post_ids = []){
+        $templates = get_page_templates();
+        $ids = [];
+        $i = 0;
+        foreach ($templates as $key => $template) {
+            $post_id = $post_ids[count($post_ids) -3 - $i];
+            $ids[] = $post_id;
+            update_post_meta( $post_id, '_wp_page_template', $template );
+            $my_post = array(
+                'ID'         => $post_id,
+                'post_title' => $key,
+            );
+            wp_update_post( $my_post );
+                $i++;
+        }
+
+        return $ids;
     }
 
     function set_blog_page($for_post, $for_page){
@@ -292,6 +313,22 @@ class Eto_Demo_Data{
             'menu-item-url' => get_permalink($blog_id),
             'menu-item-type' => 'custom',
             'menu-item-status' => 'publish'));
+
+    }
+
+    function add_template_page_in_menu($page_ids = []){
+
+        $name = 'primary-menu';
+        $menu = get_term_by( 'name', $name, 'nav_menu' );
+        foreach ($page_ids as $key => $page_id) {
+            $the_post = get_post( $page_id );
+            wp_update_nav_menu_item($menu->term_id, 0, array(
+                'menu-item-title' =>  $the_post->post_title,
+                'menu-item-classes' => 'topics-dropdown',
+                'menu-item-url' => get_permalink($page_id),
+                'menu-item-type' => 'custom',
+                'menu-item-status' => 'publish'));
+        }
 
     }
 
